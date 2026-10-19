@@ -1,8 +1,50 @@
 name: Deploy
 
 on:
-  push:
-    branches: [main]
+  # Sem `push`: o deploy e disparado pela pipeline unica (deploy-all.yml, no
+  # mechanical-hub-infra) ou manualmente em Actions -> Deploy -> Run workflow.
+  workflow_call:
+    inputs:
+      environment:
+        description: Ambiente alvo
+        required: false
+        default: production
+        type: string
+      mongodb_persistencia:
+        description: MongoDB em PVC (EBS gp3); desmarcado cai para emptyDir
+        required: false
+        default: true
+        type: boolean
+      criar_usuarios_e_role:
+        description: >-
+          Executar sql/service-user.sql nas 3 instancias e
+          sql/auth-database-role.sql na do orders apos o apply
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: true
+      AWS_ACCOUNT_ID:
+        required: true
+      DB_PASSWORD_ORDERS:
+        required: true
+      DB_PASSWORD_STOCK:
+        required: true
+      DB_PASSWORD_BILLING:
+        required: true
+      ORDERS_DB_APP_PASSWORD:
+        required: false
+      STOCK_DB_APP_PASSWORD:
+        required: false
+      BILLING_DB_APP_PASSWORD:
+        required: false
+      AUTH_DB_PASSWORD:
+        required: false
   workflow_dispatch:
     inputs:
       environment:
@@ -31,7 +73,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ github.ref }}
+  # Nome proprio por workflow: o grupo e avaliado no repositorio chamador.
+  group: deploy-database-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -92,9 +135,9 @@ jobs:
         run: |
           BUCKET="mechanical-hub-tfstate-${{ secrets.AWS_ACCOUNT_ID }}"
           echo "bucket=${BUCKET}" >> $GITHUB_OUTPUT
-          echo "environment=${{ github.event.inputs.environment || 'production' }}" >> $GITHUB_OUTPUT
-          # No push nao ha inputs: persistencia ligada (padrao da variavel).
-          echo "mongodb_persistence=${{ github.event_name != 'workflow_dispatch' || inputs.mongodb_persistencia }}" >> $GITHUB_OUTPUT
+          echo "environment=${{ inputs.environment || 'production' }}" >> $GITHUB_OUTPUT
+          # `inputs` existe em workflow_dispatch e em workflow_call (padrao true).
+          echo "mongodb_persistence=${{ inputs.mongodb_persistencia }}" >> $GITHUB_OUTPUT
 
       - name: Garantir bucket de state
         run: |
@@ -220,7 +263,8 @@ jobs:
     name: Criar usuarios dos servicos e role de autenticacao
     runs-on: ubuntu-latest
     needs: deploy
-    if: github.event_name == 'workflow_dispatch' && inputs.criar_usuarios_e_role
+    # `github.event_name` seria o do workflow chamador; usa o input direto.
+    if: inputs.criar_usuarios_e_role == true
 
     env:
       NAMESPACE: mechanical-hub-db-jobs

@@ -159,8 +159,8 @@ O mesmo vale para a senha master faltando em `db_passwords` e para `mongodb_pers
 
 ## Ordem de execução do ambiente
 
-1. **`terraform apply`** deste repositório (push em `main` ou Actions → Deploy → Run workflow), depois do `mechanical-hub-infra`.
-2. **Usuários e role:** Actions → Deploy → Run workflow marcando `criar_usuarios_e_role`. Roda `sql/service-user.sql` nas 3 instâncias e `sql/auth-database-role.sql` na do `orders`, como Jobs no EKS (os RDS são privados). Necessário no primeiro apply e a cada recriação dos RDS.
+1. **`terraform apply`** deste repositório (pipeline única **Deploy completo** do `mechanical-hub-infra`, ou Actions → Deploy → Run workflow), depois do `mechanical-hub-infra`.
+2. **Usuários e role:** Marcar `criar_usuarios_e_role` no **Deploy completo** (ou em Actions → Deploy → Run workflow neste repositório). Roda `sql/service-user.sql` nas 3 instâncias e `sql/auth-database-role.sql` na do `orders`, como Jobs no EKS (os RDS são privados). Necessário no primeiro apply e a cada recriação dos RDS.
 3. **Deploy dos serviços:** as migrations do `orders` concedem o `SELECT` a `mechanical_hub_auth`, por isso a role precisa existir antes; depois, `mechanical-hub-auth`.
 
 O MongoDB não tem passo manual: o Job de inicialização roda dentro do `apply`.
@@ -287,14 +287,16 @@ O `-test-directory` é obrigatório: o `terraform test` só procura arquivos dir
 | `ci.yml` → `validate` | PR e push em `main` | `fmt -check`, `validate` (raiz e módulo `mongodb`), testes unitários |
 | `ci.yml` → `integration` | PR e push em `main` | Testes de integração com LocalStack como service container |
 | `ci.yml` → `plan` | PR em `main` | `plan` real contra a AWS e o cluster, para revisão no PR |
-| `deploy.yml` → `deploy` | Push em `main`, ou manual | kubeconfig do cluster, `plan`, `apply`, outputs publicados no job e no step summary |
-| `deploy.yml` → `database-users` | Só manual, marcando `criar_usuarios_e_role` | Roda os scripts de `sql/` em cada instância, via Jobs no EKS |
+| `deploy.yml` → `deploy` | Chamado pela pipeline única (`deploy-all.yml`, em `mechanical-hub-infra`), ou manual | kubeconfig do cluster, `plan`, `apply`, outputs publicados no job e no step summary |
+| `deploy.yml` → `database-users` | Marcando `criar_usuarios_e_role` (na pipeline única ou manual) | Roda os scripts de `sql/` em cada instância, via Jobs no EKS |
+
+O deploy **não roda mais no push para `main`**: ele vem do orquestrador (`mechanical-hub-infra` → *Deploy completo*), que o executa depois da `infra`. O `deploy.yml` expõe `workflow_call` com os inputs `environment`, `mongodb_persistencia` e `criar_usuarios_e_role`, e os secrets chegam por `secrets: inherit`.
 
 O `deploy.yml` usa `concurrency` sem cancelamento: dois `terraform apply` simultâneos disputariam o mesmo state.
 
 ### Secrets exigidos
 
-Configurar em **Settings → Secrets and variables → Actions**:
+Configurar como secrets da **organização** (Settings → Secrets and variables → Actions), liberados para os repositórios do projeto; na pipeline única eles chegam por `secrets: inherit`:
 
 | Secret | Descrição |
 | --- | --- |
