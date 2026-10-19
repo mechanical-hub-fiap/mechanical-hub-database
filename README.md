@@ -181,8 +181,10 @@ terraform test -filter=tests/integration/rds_integration.tftest.hcl
 | `ci.yml` → `validate` | PR e push em `main` | `fmt -check`, `init -backend=false`, `validate`, testes unitários |
 | `ci.yml` → `integration` | PR e push em `main` | Testes de integração com LocalStack como service container |
 | `ci.yml` → `plan` | PR em `main` | `plan` real contra a AWS, para revisão no PR |
-| `deploy.yml` → `deploy` | Push em `main`, ou manual | `init`, `validate`, `plan`, `apply` e publicação dos outputs no step summary |
+| `deploy.yml` → `deploy` | Chamado pela pipeline única (`deploy-all.yml`, em `mechanical-hub-infra`), ou manual | `init`, `validate`, `plan`, `apply` e publicação dos outputs no step summary |
 | `deploy.yml` → `auth-role` | Só manual, marcando `criar_role_de_autenticacao` | Executa `sql/auth-database-role.sql` contra o banco recém-provisionado |
+
+O deploy **não roda mais no push para `main`**: ele vem do orquestrador (`mechanical-hub-infra` → *Deploy completo*), que o executa depois da `infra`. O `deploy.yml` expõe `workflow_call` com os inputs `environment` e `criar_role_de_autenticacao`. Os secrets vêm da organização (`secrets: inherit`).
 
 O `deploy.yml` usa `concurrency` sem cancelamento: dois `terraform apply` simultâneos disputariam o mesmo state.
 
