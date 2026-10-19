@@ -101,6 +101,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: mechanical-hub-fiap/mechanical-hub-database
+          ref: main
 
       - name: Conferir secrets obrigatorios
         env:
@@ -270,7 +273,12 @@ jobs:
       NAMESPACE: mechanical-hub-db-jobs
 
     steps:
+      # Em workflow_call o checkout padrao pega o repo CHAMADOR (mechanical-hub-infra);
+      # o repositorio precisa ser explicito para rodar o codigo deste repo.
       - uses: actions/checkout@v4
+        with:
+          repository: mechanical-hub-fiap/mechanical-hub-database
+          ref: main
 
       - name: Conferir secrets obrigatorios
         env:
